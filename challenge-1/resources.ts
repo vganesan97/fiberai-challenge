@@ -9,4 +9,4 @@ export const DUMP_DOWNLOAD_URL: string =
  * Your completed SQLite database should live at this path, relative to
  * the `challenge-1` folder.
  */
-export const SQLITE_DB_PATH: string = "out/database.sqlite";
+export const SQLITE_DB_PATH: string = "./out/database.sqlite";
