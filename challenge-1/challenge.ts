@@ -13,9 +13,36 @@ import knex, {Knex} from 'knex';
 import csv from 'fast-csv';
 import {DUMP_DOWNLOAD_URL, SQLITE_DB_PATH} from "./resources";
 import path from "path";
+import _ from "lodash";
+import axios from 'axios';
+import { Writable } from 'stream';
+
 
 type InferredType = 'int' | 'bigint' | 'float' | 'date' | 'string';
 
+// /**
+//  * Downloads a file from a given URL and saves it to a specified destination.
+//  * @param {string} url - The URL of the file to download.
+//  * @param {string} dest - The destination where the file should be saved.
+//  * @returns {Promise<void>} A promise that resolves when the download is complete.
+//  */
+// const downloadFile = (url: string, dest: string): Promise<void> => {
+//   return new Promise((resolve, reject) => {
+//     const file = fs.createWriteStream(dest);
+//     https.get(url, (response: IncomingMessage) => {
+//       response.pipe(file);
+//       file.on('finish', () => {
+//         file.close();
+//         resolve();
+//       });
+//     }).on('error', (err: Error) => {
+//       fs.unlink(dest, unlinkErr => {
+//         if (unlinkErr) console.error(`Failed to unlink file: ${unlinkErr}`);
+//       });
+//       reject(err);
+//     });
+//   });
+// };
 
 /**
  * Downloads a file from a given URL and saves it to a specified destination.
@@ -23,29 +50,35 @@ type InferredType = 'int' | 'bigint' | 'float' | 'date' | 'string';
  * @param {string} dest - The destination where the file should be saved.
  * @returns {Promise<void>} A promise that resolves when the download is complete.
  */
-const downloadFile = (url: string, dest: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https.get(url, (response: IncomingMessage) => {
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        resolve();
-      });
-    }).on('error', (err: Error) => {
-      fs.unlink(dest, unlinkErr => {
-        if (unlinkErr) console.error(`Failed to unlink file: ${unlinkErr}`);
-      });
-      reject(err);
+const downloadFile = async (url: string, dest: string): Promise<void> => {
+  const writer = fs.createWriteStream(dest);
+
+  try {
+    const response = await axios({
+      url,
+      method: 'GET',
+      responseType: 'stream',
     });
-  });
+
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+    });
+  } catch (error) {
+    fs.unlink(dest, unlinkErr => {
+      if (unlinkErr) console.error(`Failed to unlink file: ${unlinkErr}`);
+    });
+    throw error;
+  }
 };
 
 /**
- * Decompresses a .tar.gz file and extracts its contents.
+ * Decompresses a .tar.gz file and extracts its contents to a specific destination.
  * @param {string} src - The source path of the .tar.gz file.
  * @param {string} dest - The destination directory where the files should be extracted.
- * @returns {Promise<void>} A promise that resolves when decompression and extraction are complete.
+ * @returns {Promise<void>} A promise that resolves when the decompression and extraction are complete.
  */
 const decompressAndExtract = (src: string, dest: string): Promise<void> => {
   return new Promise((resolve, reject) => {
@@ -72,8 +105,11 @@ const decompressAndExtract = (src: string, dest: string): Promise<void> => {
   });
 };
 
-
-// Infer the type of a single value
+/**
+ * Infers the type of given value based on its structure.
+ * @param {string} value - The value whose type needs to be inferred.
+ * @returns {InferredType} The inferred type of the value.
+ */
 const inferType = (value: string): InferredType => {
   if (/^\d+$/.test(value)) {
     const intValue = parseInt(value, 10);
@@ -87,7 +123,12 @@ const inferType = (value: string): InferredType => {
   return 'string';
 };
 
-// Infer types of multiple columns based on sample rows
+/**
+ * Infers the types of multiple columns based on a sample of rows from a CSV file.
+ * @param {string} filePath - The path to the CSV file.
+ * @param {number} [sampleSize=10] - The number of sample rows to use for type inference.
+ * @returns {Promise<Record<string, InferredType>>} A promise that resolves with a record of inferred column types.
+ */
 const inferColumnTypes = async (filePath: string, sampleSize: number = 10): Promise<Record<string, InferredType>> => {
   const sampleRows: any[] = [];
   const inferredTypes: Record<string, InferredType> = {};
@@ -114,7 +155,12 @@ const inferColumnTypes = async (filePath: string, sampleSize: number = 10): Prom
   });
 };
 
-// Setup database based on inferred types
+/**
+ * Sets up a SQLite database table based on inferred column types.
+ * @param {Record<string, InferredType>} inferredTypes - A record of inferred column types.
+ * @param {string} tableName - The name of the table to create.
+ * @returns {Promise<void>} A promise that resolves when the table is set up.
+ */
 const setupDatabase = async (inferredTypes: Record<string, InferredType>, tableName: string): Promise<void> => {
   const db = knex({
     client: 'sqlite3',
@@ -126,7 +172,7 @@ const setupDatabase = async (inferredTypes: Record<string, InferredType>, tableN
 
   await db.schema.createTable(tableName, (table: Knex.CreateTableBuilder) => {
     table.increments('id').primary();
-    Object.entries(inferredTypes).forEach(([header, type]) => {
+    _.forEach(Object.entries(inferredTypes), ([header, type]) => {
       switch (type) {
         case 'int':
           table.integer(header);
@@ -147,28 +193,20 @@ const setupDatabase = async (inferredTypes: Record<string, InferredType>, tableN
       }
     });
   });
-
   await db.destroy();
 };
 
 /**
  * Processes a CSV file and inserts its data into a specified SQLite table.
- * @param {string} filePath - The path of the CSV file to process.
- * @param {string} tableName - The name of the SQLite table to insert data into.
+ * @param {Knex} db - The Knex database connection.
+ * @param {string} filePath - The path to the CSV file.
+ * @param {string} tableName - The name of the SQLite table where the data should be inserted.
  * @returns {Promise<void>} A promise that resolves when the CSV processing is complete.
  */
-const processCSV = async (filePath: string, tableName: string): Promise<void> => {
-  const db = knex({
-    client: 'sqlite3',
-    connection: {
-      filename: SQLITE_DB_PATH,
-    },
-    useNullAsDefault: true,
-  });
+const processCSV = async (db: Knex, filePath: string, tableName: string): Promise<void> => {
 
   const rows: any[] = [];
-  const batchSize: number = 90;
-  let dbRowCount = 0;
+  const batchSize: number = 200;
 
   try {
     // Start a transaction
@@ -179,10 +217,9 @@ const processCSV = async (filePath: string, tableName: string): Promise<void> =>
             .on('data', async (row) => {
               rows.push(row);
               if (rows.length >= batchSize) {
-                stream.pause();  // Pause the stream
-                await trx.batchInsert(tableName, rows.splice(0, batchSize), batchSize)
-                    .catch(reject);
-                stream.resume();  // Resume the stream
+                //stream.pause();  // Pause the stream
+                await trx.batchInsert(tableName, rows.splice(0, batchSize), batchSize).catch(reject);
+                //stream.resume();  // Resume the stream
               }
             })
             .on('end', async () => {
@@ -197,15 +234,18 @@ const processCSV = async (filePath: string, tableName: string): Promise<void> =>
 
   } catch (err) {
     console.error(`An error occurred while processing the CSV: ${err}`);
-  } finally {
-    await db.destroy();
   }
 };
 
 
+/**
+ * The main function. Downloads, decompresses, and processes a data dump into SQLite tables.
+ * @returns {Promise<void>} A promise that resolves when all operations are complete.
+ */
 export async function processDataDump(): Promise<void> {
   try {
-// Helper function to ensure directory exists
+
+    // Helper function to ensure directory exists
     const ensureDirectoryExists = (filePath: string) => {
       const directory = path.dirname(filePath);
       if (!fs.existsSync(directory)) {
@@ -213,12 +253,10 @@ export async function processDataDump(): Promise<void> {
       }
     };
 
-// Ensure the directory for SQLite exists
+    // Ensure the directory for SQLite exists
     console.log('Ensuring directory exists for SQLite database...');
     ensureDirectoryExists(SQLITE_DB_PATH);
     console.log('Directory check complete.');
-
-// Now proceed with your database operations
 
     // Replace these with actual file paths and URLs
     const tarGzUrl = DUMP_DOWNLOAD_URL;
@@ -231,17 +269,39 @@ export async function processDataDump(): Promise<void> {
     // Step 2: Decompress and extract the file
     await decompressAndExtract(tarGzDest, extractDest);
 
-    // Step 3: Infer column types
-    const customerInferredTypes = await inferColumnTypes('./tmp/extracted/dump/customers.csv');
-    const organizationInferredTypes = await inferColumnTypes('./tmp/extracted/dump/organizations.csv');
+    // // Step 3: Infer column types
+    // const customerInferredTypes = await inferColumnTypes('./tmp/extracted/dump/customers.csv');
+    // const organizationInferredTypes = await inferColumnTypes('./tmp/extracted/dump/organizations.csv');
+    //
+    // // Step 4: Setup database
+    // await setupDatabase(customerInferredTypes, 'customers');
+    // await setupDatabase(organizationInferredTypes, 'organizations');
 
-    // Step 4: Setup database
-    await setupDatabase(customerInferredTypes, 'customers');
-    await setupDatabase(organizationInferredTypes, 'organizations');
+    // Parallelize type inference and database setup
+    const [customerInferredTypes, organizationInferredTypes] = await Promise.all([
+      inferColumnTypes('./tmp/extracted/dump/customers.csv'),
+      inferColumnTypes('./tmp/extracted/dump/organizations.csv')
+    ]);
 
-    // Step 5: Process CSV (Assuming you have a function for it)
-    await processCSV('./tmp/extracted/dump/customers.csv', 'customers');
-    await processCSV('./tmp/extracted/dump/organizations.csv', 'organizations');
+    await Promise.all([
+      setupDatabase(customerInferredTypes, 'customers'),
+      setupDatabase(organizationInferredTypes, 'organizations')
+    ]);
+
+    const db = knex({
+      client: 'sqlite3',
+      connection: {
+        filename: SQLITE_DB_PATH,
+      },
+      useNullAsDefault: true,
+    });
+
+    // // Step 5: Process CSV (Assuming you have a function for it)
+    await processCSV(db,'./tmp/extracted/dump/customers.csv', 'customers');
+    await processCSV(db, './tmp/extracted/dump/organizations.csv', 'organizations');
+
+    await db.destroy()
+
   } catch (err) {
     throw Error(`An error occurred: ${err}`);
   };
