@@ -17,8 +17,6 @@ const DomainList: React.FC<DomainListProps> = (props: DomainListProps) => {
         removeDomainFromCart,
     } = props;
 
-    console.log('Rendering DomainList component.');
-
     return (
         <Box w="100%" maxW="md">
             {filteredCart.map((d, index) => (
