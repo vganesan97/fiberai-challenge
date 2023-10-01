@@ -156,7 +156,7 @@ const extractDescription = (str: string): string => {
  */
 const scrapeCompany = async (url: string): Promise<void> => {
   const crawler: CheerioCrawler = new CheerioCrawler({
-    async requestHandler({ request,  $, enqueueLinks, log }): Promise<void> {
+    async requestHandler({ request,  $, enqueueLinks }): Promise<void> {
       const baseUrl: string = "https://www.ycombinator.com";
       const companyDataset: Dataset = await Dataset.open('company-dataset');
       const launchArticleDataset: Dataset = await Dataset.open('launch-article-dataset');

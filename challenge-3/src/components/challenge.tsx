@@ -254,7 +254,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
                 isClosable: true,
             });
         }
-    }, [domainInput, cart, cartHistory]);
+    }, [domainInput, cart, addActionToHistory, toast]);
 
     /**
      * Remove a domain from the cart.
@@ -269,7 +269,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
             duration: 2000,
             isClosable: true,
         });
-    }, [cart]);
+    }, [cart, toast]);
 
 
     /**
@@ -294,7 +294,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
             duration: 2000,
             isClosable: true,
         });
-    }, [toast, cart, cartHistory]);
+    }, [addActionToHistory, cart, toast]);
 
 
     /**
@@ -310,7 +310,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
             duration: 2000,
             isClosable: true,
         });
-    }, [cart, toast]);
+    }, [addActionToHistory, cart, toast]);
 
     /**
      * Copy the names of all domains in the cart to the clipboard.
@@ -370,7 +370,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
             duration: 2000,
             isClosable: true,
         });
-    }, [cart, maxDomains, toast]);
+    }, [addActionToHistory, cart, maxDomains, toast]);
 
 
     /**
