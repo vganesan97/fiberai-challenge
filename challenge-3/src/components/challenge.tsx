@@ -386,6 +386,12 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         setCart(updatedCart);
     }, [cart]);
 
+    // Method to handle key press events
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            addDomainToCart();
+        }
+    };
     const shouldRenderDivider: boolean = unavailableDomains > 0 || availableDomains > 0 || !isPurchaseDisabled;
 
     return (
@@ -411,6 +417,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
                 domainInput={domainInput}
                 setDomainInput={setDomainInput}
                 addDomainToCart={addDomainToCart}
+                handleKeyPress={handleKeyPress}
             />
             <Divider style={{ backgroundColor: 'black', height: '2px'}} />
             <ToolBar

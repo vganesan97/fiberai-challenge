@@ -6,6 +6,7 @@ interface DomainSearchProps {
     domainInput: string;
     setDomainInput: (value: string) => void;
     addDomainToCart: () => void;
+    handleKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 const DomainSearch: React.FC<DomainSearchProps> = (props) => {
@@ -15,6 +16,7 @@ const DomainSearch: React.FC<DomainSearchProps> = (props) => {
         domainInput,
         setDomainInput,
         addDomainToCart,
+        handleKeyPress
     } = props;
 
     console.log("Rendering DomainSearch component.");
@@ -41,6 +43,7 @@ const DomainSearch: React.FC<DomainSearchProps> = (props) => {
                         console.log(`Changing domain input to: ${e.target.value}`);
                         setDomainInput(e.target.value);
                     }}
+                    onKeyDown={handleKeyPress}
                 />
                 <Button w="170px" onClick={() => {
                     console.log("Adding domain to cart.");
