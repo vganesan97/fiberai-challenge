@@ -217,7 +217,7 @@ const countRowsInTable = async (db: Knex, tableName: string): Promise<number> =>
 };
 
 /**
- * Count the number of rows in a CSV file.
+ * Count the number of rows in a CSV file. Mainly a sanity check.
  * @param {string} filePath - The path to the CSV file.
  * @returns {Promise<number>} A promise that resolves with the number of rows in the CSV file.
  */

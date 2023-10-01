@@ -1,6 +1,5 @@
 import {ChakraProvider, Box, Image, Divider} from "@chakra-ui/react";
 import { AppProps } from "next/app";
-import logo from '../../public/logo.svg';
 
 
 // Tailwind and other styles
@@ -10,7 +9,7 @@ import React from "react";
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <ChakraProvider>
-        <Box align="center" w="100%" h="50%">
+        <Box display="flex" justifyContent="center" alignItems="center" w="100%" h="50%">
             <Image
                 align="center"
                 boxSize='100px'

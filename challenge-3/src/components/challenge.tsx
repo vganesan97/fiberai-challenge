@@ -1,46 +1,52 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-    VStack,
-    Box,
-    Text,
-    IconButton,
-    Button,
-    useToast,
-    Badge,
-    Avatar,
-    Tooltip,
-    HStack,
-    Input,
-    Alert,
-    AlertIcon,
-    Select,
-    Stat,
-    StatLabel,
-    Divider,
-    StatGroup, StatHelpText, StatNumber,
-    Heading
-} from '@chakra-ui/react';
-import { FaTrash, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
-import { Spinner } from '@chakra-ui/react';
+import { VStack, useToast, Divider} from '@chakra-ui/react';
+import ToolBar from "@/components/ToolBar";
+import DomainSearch from "@/components/DomainSearch";
+import DomainBadge from "@/components/DomainBadge";
+import DomainActions from "@/components/DomainActions";
+import DomainFilter from "@/components/DomainFilter";
+import DomainList from "@/components/DomainList";
 
-
-
+/**
+ * Props type for the Challenge component.
+ * @interface
+ * @property {number} maxDomains - Maximum number of domains to be selected.
+ */
 interface ChallengeProps {
     maxDomains: number;
 }
 
-interface DomainInfo {
+/**
+ * Type for individual domain information.
+ * @interface
+ * @property {string} name - The domain name.
+ * @property {boolean} [available] - Availability status of the domain.
+ * @property {boolean} [isLoading] - Loading status of the domain.
+ */
+export interface DomainInfo {
     name: string;
     available?: boolean;
     isLoading?: boolean;
 }
 
+/**
+ * Validate if a given string is a valid domain name.
+ * @param {string} domain - The domain name to validate.
+ * @returns {boolean} True if the domain name is valid, otherwise false.
+ *
+ * Regex obtained from chatGPT
+ */
 const isValidDomain = (domain: string): boolean => {
     const regex = /^(?!:\/\/)([a-zA-Z0-9-]+)\.(com|xyz|app)$/;
     return regex.test(domain);
 };
 
 
+/**
+ * Main component for the Challenge application.
+ * Manages the domain selection, filtering, and purchasing functionalities.
+ * @param {ChallengeProps} props - Props for the Challenge component.
+ */
 export function Challenge({ maxDomains }: ChallengeProps) {
     const [cart, setCart] = useState<DomainInfo[]>([]);
     const [domainInput, setDomainInput] = useState<string>('');
@@ -54,6 +60,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
 
     const [redoStack, setRedoStack] = useState<DomainInfo[][]>([]);
     const [isSmallScreen, setSmallScreen] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
 
     const toast = useToast();
 
@@ -66,56 +73,48 @@ export function Challenge({ maxDomains }: ChallengeProps) {
     // Read from Local Storage when component mounts
     useEffect(() => {
         const storedCart = localStorage.getItem('cart');
-        console.log(storedCart)
-        if (storedCart) {
-            setCart(JSON.parse(storedCart));
-        }
+        if (storedCart) setCart(JSON.parse(storedCart));
     }, []);
 
     useEffect(() => {
-        const checkScreenSize = () => {
-            setSmallScreen(window.innerWidth < 768);
-        };
-        // Initial check
+        const checkScreenSize = () => { setSmallScreen(window.innerWidth < 768); };
         checkScreenSize();
         // Listen for window resize
         window.addEventListener('resize', checkScreenSize);
-
-        // Cleanup
         return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
     useEffect(() => {
-        let filtered: DomainInfo[] = [];
-        if (filterType === 'Name') {
-            filtered = cart.filter(domain =>
-                domain.name.toLowerCase().includes(filterQuery.toLowerCase())
-            );
-        } else if (filterType === 'Available') {
-            filtered = cart.filter(domain => domain.available === true);
-        } else if (filterType === 'Unavailable') {
-            filtered = cart.filter(domain => domain.available === false);
-        }
+        const filtered: DomainInfo[] = (() => {
+            if (filterType === 'Name') {
+                return cart.filter(domain =>
+                    domain.name.toLowerCase().includes(filterQuery.toLowerCase())
+                );
+            }
+            if (filterType === 'Available') {
+                return cart.filter(domain => domain.available === true);
+            }
+            if (filterType === 'Unavailable') {
+                return cart.filter(domain => domain.available === false);
+            }
+            return [];
+        })();
         setFilteredCart(filtered);
     }, [filterQuery, filterType, cart]);
 
 
 
-
     useEffect(() => {
-        const checkDomains = async () => {
-            const promises = cart.map(async (domain, index) => {
+        const checkDomains = async (): Promise<void> => {
+            const promises: Promise<void>[] = cart.map(async (domain: DomainInfo, index: number): Promise<void> => {
                 if (domain.available !== undefined || domain.isLoading) return;
-
                 try {
-                    const updatedCart = [...cart];
+                    const updatedCart: DomainInfo[] = [...cart];
                     updatedCart[index].isLoading = true;
                     setCart(updatedCart);
-
-                    const res = await fetch(`/api/checkDomain?domain=${domain.name}`);
+                    const res: Response = await fetch(`/api/checkDomain?domain=${domain.name}`);
                     const data = await res.json();
-
-                    const updatedCartAfterCheck = [...cart];
+                    const updatedCartAfterCheck: DomainInfo[] = [...cart];
                     updatedCartAfterCheck[index].available = data.available;
                     updatedCartAfterCheck[index].isLoading = false;
                     setCart(updatedCartAfterCheck);
@@ -130,31 +129,33 @@ export function Challenge({ maxDomains }: ChallengeProps) {
                     });
                 }
             });
-
             await Promise.all(promises);
         };
-
         checkDomains();
     }, [cart, toast]);
 
-    // Second useEffect for counting available and unavailable domains
     useEffect(() => {
-        let availableCount = 0;
-        let unavailableCount = 0;
-
-        cart.forEach((domain) => {
-            if (domain.available) {
-                availableCount++;
-            } else if (domain.available === false) {
-                unavailableCount++;
-            }
-        });
-
+        const { availableCount, unavailableCount } = cart.reduce(
+            (acc, domain: DomainInfo) => {
+                if (domain.available) {
+                    acc.availableCount++;
+                } else if (domain.available === false) {
+                    acc.unavailableCount++;
+                }
+                return acc;
+            },
+            { availableCount: 0, unavailableCount: 0 }
+        );
         setAvailableDomains(availableCount);
         setUnavailableDomains(unavailableCount);
     }, [cart]);
 
-    const addActionToHistory = (currentCart: DomainInfo[]) => {
+
+    /**
+     * Save the current state of the cart to history for undo functionality.
+     * @param {DomainInfo[]} currentCart - The current state of the cart.
+     */
+    const addActionToHistory = (currentCart: DomainInfo[]): void => {
         if (Array.isArray(currentCart)) {
             setCartHistory([...cartHistory, [...currentCart]]);
         } else {
@@ -162,9 +163,15 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         }
     };
 
-    const redoLastAction = () => {
+    /**
+     * Redo the last undone action, if any.
+     * Restores the cart to the state before the last undo operation.
+     *
+     * Implemented using a stack to keep track of previous actions
+     */
+    const redoLastAction = (): void => {
         if (redoStack.length > 0) {
-            const lastState = redoStack[redoStack.length - 1];
+            const lastState: DomainInfo[] = redoStack[redoStack.length - 1];
             setCart([...lastState]);
             setCartHistory([...cartHistory, cart]);
             setRedoStack(redoStack.slice(0, -1));
@@ -180,16 +187,33 @@ export function Challenge({ maxDomains }: ChallengeProps) {
     };
 
 
-    const undoLastAction = () => {
+    /**
+     * Undo the last action, if any.
+     * Reverts the cart to the previous state.
+     */
+    const undoLastAction = (): void => {
         if (cartHistory.length > 0) {
-            const lastState = cartHistory[cartHistory.length - 1];
+            const lastState: DomainInfo[] = cartHistory[cartHistory.length - 1];
             setCart([...lastState]);
             setRedoStack([...redoStack, cart]);
             setCartHistory(cartHistory.slice(0, -1));
+        } else {
+            toast({
+                title: "Nothing to Undo",
+                description: "You don't have any actions that can be undone.",
+                status: "info",
+                duration: 2000,
+                isClosable: true,
+            });
         }
     };
 
-    const addDomainToCart = useCallback(() => {
+
+    /**
+     * Add a new domain to the cart.
+     * Uses the `domainInput` state to read the new domain name.
+     */
+    const addDomainToCart = useCallback((): void => {
         if (isValidDomain(domainInput)) {
             const newDomain = { name: domainInput.toLowerCase(), isLoading: false };
             if (!cart.some(d => d.name === newDomain.name)) {
@@ -214,7 +238,11 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         }
     }, [domainInput, cart, cartHistory]);
 
-    const removeDomainFromCart = useCallback((domain: string) => {
+    /**
+     * Remove a domain from the cart.
+     * @param {string} domain - The name of the domain to remove.
+     */
+    const removeDomainFromCart = useCallback((domain: string): void => {
         setCart(cart.filter(d => d.name !== domain));
         toast({
             title: "Domain Removed",
@@ -225,26 +253,20 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         });
     }, [cart]);
 
-    const isPurchaseDisabled = useMemo(() => {
+
+    /**
+     * Determines whether the Purchase button should be disabled.
+     * @type {boolean}
+     */
+    const isPurchaseDisabled: boolean = useMemo(() => {
         return availableDomains !== maxDomains || unavailableDomains > 0;
     }, [availableDomains, maxDomains, unavailableDomains]);
 
-    const keepBestDomainsLogic = () => {
-        const sortedCart = [...cart].sort((a, b) => {
-            const domainA = a.name.split('.');
-            const domainB = b.name.split('.');
-            const extOrder = ['.com', '.app', '.xyz'];
-            const extA = extOrder.indexOf(domainA[1]);
-            const extB = extOrder.indexOf(domainB[1]);
 
-            if (extA !== extB) return extA - extB;
-            return domainA[0].length - domainB[0].length;
-        });
-
-        setCart(sortedCart.slice(0, maxDomains));
-    };
-
-    const clearCart = useCallback(() => {
+    /**
+     * Clear all domains from the cart.
+     */
+    const clearCart = useCallback((): void => {
         addActionToHistory(cart);
         setCart([]);
         toast({
@@ -256,7 +278,11 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         });
     }, [toast, cart, cartHistory]);
 
-    const removeUnavailableDomains = useCallback(() => {
+
+    /**
+     * Remove all unavailable domains from the cart.
+     */
+    const removeUnavailableDomains = useCallback((): void => {
         setCart(cart.filter(d => d.available));
         addActionToHistory(cart);
         toast({
@@ -268,8 +294,11 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         });
     }, [cart, toast]);
 
-    const copyDomainsToClipboard = useCallback(() => {
-        const domainNames = cart.map(d => d.name).join(", ");
+    /**
+     * Copy the names of all domains in the cart to the clipboard.
+     */
+    const copyDomainsToClipboard = useCallback((): void => {
+        const domainNames: string = cart.map(d => d.name).join(", ");
         navigator.clipboard.writeText(domainNames);
         toast({
             title: "Domains Copied",
@@ -280,8 +309,22 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         });
     }, [cart, toast]);
 
+    /**
+     * Handle the purchase action.
+     * Opens a modal and clears the cart if the purchase is possible.
+     */
+    const handlePurchase = (): void => {
+        if (!isPurchaseDisabled) {
+            setIsOpen(true);  // Open the modal
+            setCart([]);  // Clear the cart
+        }
+    };
+
+    /**
+     * Keep only the best domains in the cart based on certain criteria.
+     */
     const keepBestDomains = useCallback(() => {
-        const sortedCart = [...cart].sort((a, b) => {
+        const sortedCart: DomainInfo[] = [...cart].sort((a, b) => {
             // Prioritize available domains over unavailable ones
             if (a.available && !b.available) return -1;
             if (!a.available && b.available) return 1;
@@ -289,6 +332,7 @@ export function Challenge({ maxDomains }: ChallengeProps) {
             // If both are either available or unavailable, proceed with further sorting
             const domainA = a.name.split('.');
             const domainB = b.name.split('.');
+            // Banned domain endings
             const extOrder = ['.com', '.app', '.xyz'];
             const extA = extOrder.indexOf(domainA[1]);
             const extB = extOrder.indexOf(domainB[1]);
@@ -299,10 +343,8 @@ export function Challenge({ maxDomains }: ChallengeProps) {
             // Sort by domain length
             return domainA[0].length - domainB[0].length;
         });
-
         setCart(sortedCart.slice(0, maxDomains));
         addActionToHistory(cart);
-
         toast({
             title: "Best Domains Kept",
             description: `Only the best ${maxDomains} domains are now in the cart.`,
@@ -313,205 +355,69 @@ export function Challenge({ maxDomains }: ChallengeProps) {
     }, [cart, maxDomains, toast]);
 
 
-    const handleDomainNameChange = useCallback((newName: string, index: number) => {
-        const updatedCart = [...cart];
+    /**
+     * Update the name of a domain in the cart.
+     * @param {string} newName - The new name for the domain.
+     * @param {number} index - The index of the domain in the cart.
+     */
+    const handleDomainNameChange = useCallback((newName: string, index: number): void => {
+        const updatedCart: DomainInfo[] = [...cart];
         updatedCart[index].name = newName;
-        // Re-check availability if needed
         updatedCart[index].available = undefined;
         updatedCart[index].isLoading = false;
         setCart(updatedCart);
     }, [cart]);
 
-    const shouldRenderDivider = unavailableDomains > 0 || availableDomains > 0 || !isPurchaseDisabled;
+    const shouldRenderDivider: boolean = unavailableDomains > 0 || availableDomains > 0 || !isPurchaseDisabled;
 
     return (
         <VStack spacing={4} direction={{ base: "column", md: "row" }}>
-            <HStack spacing={4} direction={{ base: "column", md: "row" }}>
-                {unavailableDomains == 0 && availableDomains === maxDomains && (
-                    <Alert status="success" variant="left-accent">
-                        <AlertIcon />
-                        <StatGroup>
-                            <Stat>
-                                <StatLabel>Added Available Domains</StatLabel>
-                                <StatNumber>{availableDomains}</StatNumber>
-                                <StatHelpText>
-                                    {maxDomains} Max
-                                </StatHelpText>
-                            </Stat>
-                        </StatGroup>
-                    </Alert>
-                )}
-                {availableDomains >= 1 && availableDomains < maxDomains && (
-                    <Alert status="info" variant="left-accent">
-                        <AlertIcon />
-                        <StatGroup>
-                            <Stat>
-                                <StatLabel>Added Available Domains</StatLabel>
-                                <StatNumber>{availableDomains}</StatNumber>
-                                <StatHelpText>
-                                    {maxDomains} Max
-                                </StatHelpText>
-                            </Stat>
-                        </StatGroup>
-                    </Alert>
-                )}
-
-                {availableDomains > maxDomains && (
-                    <Alert status="warning" variant="left-accent">
-                        <AlertIcon />
-                        <Text fontWeight="bold">
-                            Please remove {availableDomains - maxDomains} available {(availableDomains - maxDomains == 1) ? "domain": "domains"} to match the limit.
-                        </Text>
-                    </Alert>
-                )}
-
-                {unavailableDomains > 0 && (
-                    <Alert status="warning" variant="left-accent">
-                        <AlertIcon />
-                        <Text fontWeight="bold">
-                            Please remove {unavailableDomains} unavailable {unavailableDomains == 1 ? "domain" : "domains"}.
-                        </Text>
-                    </Alert>
-                )}
-
-                {!isPurchaseDisabled && (
-                    <Button
-                        size="lg"               // Larger button size
-                        colorScheme="teal"      // A different color scheme
-                        variant="solid"         // Solid button
-                        boxShadow="md"          // Add a little box-shadow for depth
-                        _hover={{ boxShadow: "lg" }}  // Increase box-shadow on hover for a nice effect
-                    >
-                        Purchase
-                    </Button>
-                )}
-            </HStack>
-
-            {
-                isSmallScreen ?
-                    (
-                        <VStack spacing={4}>
-                            {availableDomains > 0 && <Badge colorScheme="green">Available Domains: {availableDomains}</Badge>}
-                            {unavailableDomains > 0 && <Badge colorScheme="red">Unavailable Domains: {unavailableDomains}</Badge>}
-                            {availableDomains > maxDomains && <Badge colorScheme="yellow">Please remove extra domains</Badge>}
-                        </VStack>
-                    ) :
-                    (
-                        <HStack spacing={4} direction={{ base: "column", md: "row" }}>
-                            {availableDomains > 0 && <Badge colorScheme="green">Available Domains: {availableDomains}</Badge>}
-                            {unavailableDomains > 0 && <Badge colorScheme="red">Unavailable Domains: {unavailableDomains}</Badge>}
-                            {availableDomains > maxDomains && <Badge colorScheme="yellow">Please remove extra domains</Badge>}
-                        </HStack>
-                    )
-            }
-
-
-            {!shouldRenderDivider && (
-                <Heading m={0} p={0}>
-                    <span style={{ color: "green" }}>Search </span>
-                    <span style={{ color: "black" }}>for </span>
-                    <span style={{ color: "green" }}>Domains </span>
-                    <span style={{ color: "black" }}>to </span>
-                    <span style={{ color: "green" }}>Buy!</span>
-                </Heading>
-            )}
-            {shouldRenderDivider && <Divider style={{ backgroundColor: 'black', height: '2px' }} />}
-
-            <HStack>
-                <Input
-
-                    placeholder="Enter a domain name"
-                    value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
-                />
-                <Button w="170px" onClick={addDomainToCart}>Add to Cart</Button>
-            </HStack>
-
+            <DomainActions
+                isSmallScreen={isSmallScreen}
+                availableDomains={availableDomains}
+                unavailableDomains={unavailableDomains}
+                maxDomains={maxDomains}
+                isPurchaseDisabled={isPurchaseDisabled}
+                isOpen={isOpen}
+                handlePurchase={handlePurchase}
+                setIsOpen={setIsOpen}
+            />
+            <DomainBadge
+                isSmallScreen={isSmallScreen}
+                availableDomains={availableDomains}
+                unavailableDomains={unavailableDomains}
+                maxDomains={maxDomains}
+            />
+            <DomainSearch
+                shouldRenderDivider={shouldRenderDivider}
+                domainInput={domainInput}
+                setDomainInput={setDomainInput}
+                addDomainToCart={addDomainToCart}
+            />
             <Divider style={{ backgroundColor: 'black', height: '2px'}} />
-
-
-            <div>
-                {
-                    isSmallScreen ?
-                        (
-                            <VStack spacing={4}>
-                                <Button onClick={clearCart}>Clear Cart</Button>
-                                <Button onClick={removeUnavailableDomains}>Remove Unavailable Domains</Button>
-                                <Button onClick={copyDomainsToClipboard}>Copy Domains to Clipboard</Button>
-                                <Button onClick={keepBestDomains}>Keep Best Domains</Button>
-                                <HStack spacing={4}>
-                                    <Button onClick={undoLastAction}>Undo</Button>
-                                    <Button onClick={redoLastAction}>Redo</Button>
-                                </HStack>
-                            </VStack>
-                        ) :
-                        (
-                            <HStack spacing={4}>
-                                <Button onClick={clearCart}>Clear Cart</Button>
-                                <Button onClick={removeUnavailableDomains}>Remove Unavailable Domains</Button>
-                                <Button onClick={copyDomainsToClipboard}>Copy Domains to Clipboard</Button>
-                                <Button onClick={keepBestDomains}>Keep Best Domains</Button>
-                                <Button onClick={undoLastAction}>Undo</Button>
-                                <Button onClick={redoLastAction}>Redo</Button>
-                            </HStack>
-                        )
-                }
-            </div>
+            <ToolBar
+                isSmallScreen={isSmallScreen}
+                clearCart={clearCart}
+                removeUnavailableDomains={removeUnavailableDomains}
+                copyDomainsToClipboard={copyDomainsToClipboard}
+                keepBestDomains={keepBestDomains}
+                undoLastAction={undoLastAction}
+                redoLastAction={redoLastAction}
+            />
             <Divider style={{ backgroundColor: 'black', height: '2px'}} />
-
-            {(availableDomains > 0 || unavailableDomains > 0) && (
-                <HStack spacing={4} direction={{ base: "column", md: "row" }}>
-                    <Input
-                        placeholder="Filter domains"
-                        value={filterQuery}
-                        onChange={(e) => setFilterQuery(e.target.value)}
-                        disabled={filterType === "Available" || filterType === "Unavailable"}
-                    />
-                    <Select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                    >
-                        <option value="Name">Name</option>
-                        <option value="Available">Available</option>
-                        <option value="Unavailable">Unavailable</option>
-                    </Select>
-
-                </HStack>
-            )}
-
-            <Box w="100%" maxW="md">
-                {filteredCart.map((d, index) => (
-                    <Box key={index} display="flex" alignItems="center" p={4} border="1px" borderColor="gray.200" borderRadius="md">
-                        <Avatar
-                            size="sm"
-                            icon={d.isLoading ? <Spinner /> : d.available ? <FaCheck /> : <FaExclamationTriangle />}
-                            mr={4}
-                        />
-                        <Box w="200px">
-                            <Input
-                                value={d.name}
-                                onChange={(e) => handleDomainNameChange(e.target.value, index)}
-                            />
-                        </Box>
-                        <Box w="150px" textAlign="center">
-                            {d.isLoading ? (
-                                <Spinner size="sm" />
-                            ) : (
-                                <Badge colorScheme={d.available ? 'green' : 'red'}>
-                                    {d.available ? 'Available' : 'Unavailable'}
-                                </Badge>
-                            )}
-                        </Box>
-                        <Tooltip label="Remove" aria-label="A tooltip" ml={4}>
-                            <IconButton
-                                aria-label="Remove"
-                                icon={<FaTrash />}
-                                onClick={() => removeDomainFromCart(d.name)}
-                            />
-                        </Tooltip>
-                    </Box>
-                ))}
-            </Box>
+            <DomainFilter
+                availableDomains={availableDomains}
+                unavailableDomains={unavailableDomains}
+                filterQuery={filterQuery}
+                filterType={filterType}
+                setFilterQuery={setFilterQuery}
+                setFilterType={setFilterType}
+            />
+            <DomainList
+                filteredCart={filteredCart}
+                handleDomainNameChange={handleDomainNameChange}
+                removeDomainFromCart={removeDomainFromCart}
+            />
         </VStack>
     );
 }
