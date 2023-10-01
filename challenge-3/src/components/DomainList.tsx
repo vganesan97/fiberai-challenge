@@ -9,7 +9,7 @@ interface DomainListProps {
     removeDomainFromCart: (name: string) => void;
 }
 
-const DomainList: React.FC<DomainListProps> = (props) => {
+const DomainList: React.FC<DomainListProps> = (props: DomainListProps) => {
 
     const {
         filteredCart,

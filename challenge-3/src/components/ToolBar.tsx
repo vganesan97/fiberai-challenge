@@ -24,7 +24,6 @@ const ToolBar: React.FC<ToolBarProps> = (props: ToolBarProps) => {
     } = props;
 
     return (
-        // JSX for displaying toolbar buttons
         <div>
             {
                 isSmallScreen ?

@@ -8,7 +8,7 @@ interface DomainBadgeProps {
     maxDomains: number;
 }
 
-const DomainBadge: React.FC<DomainBadgeProps> = (props) => {
+const DomainBadge: React.FC<DomainBadgeProps> = (props: DomainBadgeProps) => {
 
     const {
         isSmallScreen,

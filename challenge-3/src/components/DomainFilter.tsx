@@ -10,7 +10,7 @@ interface DomainFilterProps {
     setFilterType: (type: string) => void;
 }
 
-const DomainFilter: React.FC<DomainFilterProps> = (props) => {
+const DomainFilter: React.FC<DomainFilterProps> = (props: DomainFilterProps) => {
     const {
         availableDomains,
         unavailableDomains,
@@ -20,11 +20,7 @@ const DomainFilter: React.FC<DomainFilterProps> = (props) => {
         setFilterType,
     } = props;
 
-    console.log('Rendering DomainFilter component.');
-
-    if (availableDomains === 0 && unavailableDomains === 0) {
-        return null;
-    }
+    if (availableDomains === 0 && unavailableDomains === 0) return null;
 
     return (
         <HStack spacing={4} direction={{ base: "column", md: "row" }}>

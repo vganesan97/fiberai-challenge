@@ -9,7 +9,7 @@ interface DomainSearchProps {
     handleKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
-const DomainSearch: React.FC<DomainSearchProps> = (props) => {
+const DomainSearch: React.FC<DomainSearchProps> = (props: DomainSearchProps) => {
 
     const {
         shouldRenderDivider,
@@ -18,8 +18,6 @@ const DomainSearch: React.FC<DomainSearchProps> = (props) => {
         addDomainToCart,
         handleKeyPress
     } = props;
-
-    console.log("Rendering DomainSearch component.");
 
     return (
         <>
