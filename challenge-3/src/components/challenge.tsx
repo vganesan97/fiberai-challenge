@@ -64,18 +64,26 @@ export function Challenge({ maxDomains }: ChallengeProps) {
 
     const toast = useToast();
 
-    // Save to Local Storage whenever cart changes
+    /**
+     * useEffect to save the cart state to Local Storage whenever the cart changes.
+     */
     useEffect(() => {
         localStorage.setItem('cart', JSON.stringify(cart));
         console.log(localStorage)
     }, [cart]);
 
-    // Read from Local Storage when component mounts
+    /**
+     * useEffect to read the cart state from Local Storage when the component mounts.
+     */
     useEffect(() => {
         const storedCart = localStorage.getItem('cart');
         if (storedCart) setCart(JSON.parse(storedCart));
     }, []);
 
+    /**
+     * useEffect to check the window size and set the `smallScreen` state accordingly.
+     * Adds an event listener for window resize and cleans it up on unmount.
+     */
     useEffect(() => {
         const checkScreenSize = () => { setSmallScreen(window.innerWidth < 768); };
         checkScreenSize();
@@ -84,6 +92,10 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
+    /**
+     * useEffect to filter the cart based on the selected `filterType` and `filterQuery`.
+     * Updates `filteredCart` state with the filtered domains.
+     */
     useEffect(() => {
         const filtered: DomainInfo[] = (() => {
             if (filterType === 'Name') {
@@ -102,8 +114,10 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         setFilteredCart(filtered);
     }, [filterQuery, filterType, cart]);
 
-
-
+    /**
+     * useEffect to asynchronously check the availability of domains in the cart.
+     * For each domain, it makes an API call to check availability and updates the cart state.
+     */
     useEffect(() => {
         const checkDomains = async (): Promise<void> => {
             const promises: Promise<void>[] = cart.map(async (domain: DomainInfo, index: number): Promise<void> => {
@@ -134,6 +148,10 @@ export function Challenge({ maxDomains }: ChallengeProps) {
         checkDomains();
     }, [cart, toast]);
 
+    /**
+     * useEffect to count the number of available and unavailable domains in the cart.
+     * Updates `availableDomains` and `unavailableDomains` states with the respective counts.
+     */
     useEffect(() => {
         const { availableCount, unavailableCount } = cart.reduce(
             (acc, domain: DomainInfo) => {
