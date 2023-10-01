@@ -5,7 +5,13 @@
 
 import {CheerioCrawler, Dataset} from 'crawlee';
 import fs from 'fs';
+import fsp from 'fs/promises'
 import fastcsv from 'fast-csv';
+import csvParser from 'csv-parser';
+import * as readline from "readline";
+import * as stream from "stream";
+import csv from "fast-csv";
+import path from "path";
 
 interface Job {
   role: string;
@@ -38,31 +44,15 @@ interface Company {
   ycombinatorUrl: string;
 }
 
-// Use an async function to read the CSV and build the JSON.
-// Abstract out the scraping logic
-const scrapeCompanies = async (rows: any[]): Promise<Company[]> => {
-  const limit = 10;
-  const comps: Company[] = [];
-  for (let i = 0; i < rows.length; i += limit) {
-    const slice = rows.slice(i, i + limit);
-    const tasks = slice.map(row => scrapeCompany(row['YC URL']));
-    const results = await Promise.all(tasks);  // Await for all the tasks to complete
-    //comps.push(...results.flat());
-    console.log(`Processed ${i + limit} companies. JSON so far:`, JSON.stringify(comps));
-  }
-  return comps;
-};
-
 function extractDescription(str: string): string {
   const firstColon = str.indexOf(":");
   const lastPipe = str.lastIndexOf("|");
-
   if (firstColon === -1 || lastPipe === -1 || firstColon >= lastPipe) {
     return "Invalid string format";
   }
-
   return str.substring(firstColon + 1, lastPipe).trim();
 }
+
 
 const scrapeCompany = async (url: string) => {
   const crawler = new CheerioCrawler({
@@ -315,29 +305,103 @@ const updateCompaniesWithLaunchArticles = async () => {
   console.log("Updated companies with launch articles");
 };
 
+const exportData = async () => {
+  const x = await Dataset.open("results");
+  // Export all data to a single JSON file in a key-value store
+  await x.exportToJSON('scraped');
+  console.log("Data has been exported to a key-value store as 'scraped'");
+};
+
+
+
+// const buildCompanyJSON = (): Promise<void> => {
+//   return new Promise(async (resolve, reject) => {
+//     try {
+//       const rows: any[] = [];
+//       const stream = fs.createReadStream('inputs/companies.csv');
+//       stream.on('error', reject);
+//       const onData = (row: any) => {
+//         rows.push(row);
+//         console.log(row)
+//       };
+//       const onEnd = async () => {
+//         try {
+//           console.log(`rows ${rows.length}`)
+//           //await Promise.all(rows.map(row => scrapeCompany(row['YC URL'])));
+//           await runCrawlersInBatches(rows.map(row => row['YC URL']))
+//           console.log('Successfully scraped jsons to storage/datasets');
+//           resolve();
+//         } catch (err) {
+//           console.error('An error occurred while scraping:', err);
+//           reject(err);
+//         }
+//       };
+//       fastcsv.parseStream(stream, { headers: true })
+//           .on('data', onData)
+//           .on('end', onEnd);
+//     } catch (err) {
+//       console.error('An error occurred:', err);
+//       reject(err);
+//     }
+//   });
+// };
+
+const MAX_BATCH_SIZE = 10; // Maximum allowed batch size
+
+async function runCrawlersInBatches(urls) {
+  if (urls.length > MAX_BATCH_SIZE) {
+    throw new Error(`Batch size should be ${MAX_BATCH_SIZE} or less`);
+  }
+
+  let i = 0;
+  while (i < urls.length) {
+    const batchUrls = urls.slice(i, i + MAX_BATCH_SIZE);
+    await Promise.all(batchUrls.map(url => scrapeCompany(url)));
+    i += MAX_BATCH_SIZE;
+  }
+}
+
+
+
+const BUFFER_SIZE = 10; // Adjust this to the number of rows you want to process in each batch.
 
 const buildCompanyJSON = (): Promise<void> => {
   return new Promise(async (resolve, reject) => {
     try {
       const rows: any[] = [];
+      let rowCount = 0;
       const stream = fs.createReadStream('inputs/companies.csv');
+
       stream.on('error', reject);
-      const onData = (row: any) => {
-        rows.push(row);
-      };
-      const onEnd = async () => {
-        try {
-          await Promise.all(rows.map(row => scrapeCompany(row['YC URL'])));
-          console.log('Successfully scraped jsons to storage/datasets');
-          resolve();
-        } catch (err) {
-          console.error('An error occurred while scraping:', err);
-          reject(err);
-        }
-      };
-      fastcsv.parseStream(stream, { headers: true })
-          .on('data', onData)
-          .on('end', onEnd);
+
+      const csvStream = fastcsv.parseStream(stream, { headers: true })
+          .on('data', (row: any) => {
+            rowCount++;
+            rows.push(row);
+            console.log(rows.length)
+            if (rowCount % BUFFER_SIZE === 0) {
+              csvStream.pause(); // Pause the stream
+              // Process the rows here
+              runCrawlersInBatches(rows.map(row => row['YC URL']))
+                  .then(() => {
+                    rows.length = 0; // Clear the buffer
+                    csvStream.resume(); // Resume the stream
+                  })
+                  .catch(err => {
+                    console.error('An error occurred while scraping:', err);
+                    reject(err);
+                  });
+            }
+          })
+          .on('end', async () => {
+            // Process any remaining rows
+            if (rows.length > 0) {
+              await runCrawlersInBatches(rows.map(row => row['YC URL']));
+            }
+            console.log('Successfully scraped jsons to storage/datasets');
+            resolve();
+          });
+
     } catch (err) {
       console.error('An error occurred:', err);
       reject(err);
@@ -345,10 +409,33 @@ const buildCompanyJSON = (): Promise<void> => {
   });
 };
 
+const moveExportedData = async () => {
+  // Step 1: Export to JSON in key-value store (replace 'temp-key' with your key)
+  // const dataset = await Dataset.open('results');
+  // await dataset.exportToJSON('temp-key');
+
+  // Step 2: Read the exported JSON from temporary storage
+  // Replace 'temp-path' with the path where 'exportToJSON' saves the file
+  const tempPath = path.join('storage', 'key_value_stores', 'default', 'scraped.json');
+  const rawData = await fsp.readFile(tempPath, 'utf8');
+
+  // Step 3: Write it to the desired directory
+  const outputPath = path.join('out', 'scraped.json');
+
+  // Create 'challenge-2/out' directory if it doesn't exist
+  await fsp.mkdir(path.dirname(outputPath), { recursive: true });
+
+  await fsp.writeFile(outputPath, rawData);
+
+  console.log(`Data has been moved to ${outputPath}`);
+};
+
 export async function processCompanyList() {
   try {
     await buildCompanyJSON();
     await updateCompaniesWithLaunchArticles();  // Update companies with launch articles
+    await exportData();
+    await moveExportedData()
   } catch (err) {
     console.error('An error occurred:', err);
   }

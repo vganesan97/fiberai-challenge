@@ -181,7 +181,7 @@ const setupDatabase = async (inferredTypes: Record<string, InferredType>, tableN
 const processCSV = async (db: Knex, filePath: string, tableName: string): Promise<void> => {
 
   const rows: any[] = [];
-  const batchSize: number = 200;
+  const batchSize: number = 10;
 
   try {
     await db.transaction(async (trx): Promise<void> => {
@@ -199,6 +199,7 @@ const processCSV = async (db: Knex, filePath: string, tableName: string): Promis
             .on('error', reject);
       });
     });
+    console.log(rows.length)
   } catch (err) {
     console.error(`An error occurred while processing the CSV: ${err}`);
   }

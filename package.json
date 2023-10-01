@@ -16,6 +16,7 @@
     "axios": "^1.5.0",
     "cheerio": "^1.0.0-rc.12",
     "crawlee": "^3.5.4",
+    "csv-parser": "^3.0.0",
     "dayjs": "^1.11.9",
     "fast-csv": "^4.3.6",
     "fs-extra": "^11.1.1",
@@ -23,10 +24,10 @@
     "knex": "^2.5.1",
     "lodash": "^4.17.21",
     "nanoid": "^5.0.1",
+    "papaparse": "^5.4.1",
     "playwright": "^1.37.1",
     "sqlite3": "^5.1.6",
-    "tar": "^6.2.0",
-    "papaparse": "^5.4.1"
+    "tar": "^6.2.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.2",
