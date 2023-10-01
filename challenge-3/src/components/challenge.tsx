@@ -173,13 +173,13 @@ export function Challenge({ maxDomains }: ChallengeProps) {
      * Save the current state of the cart to history for undo functionality.
      * @param {DomainInfo[]} currentCart - The current state of the cart.
      */
-    const addActionToHistory = (currentCart: DomainInfo[]): void => {
+    const addActionToHistory = useCallback((currentCart: DomainInfo[]): void => {
         if (Array.isArray(currentCart)) {
             setCartHistory([...cartHistory, [...currentCart]]);
         } else {
             console.error("currentCart is not an array:", currentCart);
         }
-    };
+    }, [cartHistory]);
 
     /**
      * Redo the last undone action, if any.
