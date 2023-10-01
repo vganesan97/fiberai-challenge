@@ -9,34 +9,58 @@ import fsp from 'fs/promises'
 import fastcsv from 'fast-csv';
 import path from "path";
 
+/**
+ * Interface for representing a Y Combinator batch.
+ * @interface
+ */
 interface Batch {
   batch: string | null;
   batchLink: string | null;
 }
 
+/**
+ * Interface for representing various company descriptions.
+ * @interface
+ */
 interface Descriptions {
   tagLine: string | null;
   description: string | null;
   completeDescription: string | null;
 }
 
+/**
+ * Enum for representing various company statuses within Y Combinator.
+ * @interface
+ */
 enum Status {
   Active = "Active",
   Inactive = "Inactive",
   Acquired = "Acquired",
 }
 
+/**
+ * Interface for representing a news article.
+ * @interface
+ */
 interface NewsArticle {
   title: string | null;
   url: string | null;
   datePosted: string | null;
 }
 
+/**
+ * Interface for representing a badge.
+ * @interface
+ */
 interface Badge {
   badge: string | null;
   badgeLink: string | null;
 }
 
+/**
+ * Interface for representing a founder of a company.
+ * @interface
+ */
 interface Founder {
   imgSrc: string | null;
   name: string | null
@@ -46,6 +70,10 @@ interface Founder {
   twitterUrl: string | null;
 }
 
+/**
+ * Interface for representing a job listing of a company.
+ * @interface
+ */
 interface Job {
   title: string | null;
   url: string | null;
@@ -57,6 +85,10 @@ interface Job {
   applyUrl: string | null;
 }
 
+/**
+ * Interface for representing the launch post of a company.
+ * @interface
+ */
 interface LaunchPost {
   title: string | null,
   timePosted: string | null,
@@ -67,6 +99,11 @@ interface LaunchPost {
   companyUrl: string | null,
   articleUrl: string | null
 }
+
+/**
+ * Interface for representing information about the company.
+ * @interface
+ */
 interface CompanyInfo {
   founded: number | null;
   teamSize: number | null;
@@ -77,6 +114,10 @@ interface CompanyInfo {
   crunchbaseUrl: string | null;
 }
 
+/**
+ * Interface for representing the company.
+ * @interface
+ */
 interface Company {
   logoUrl: string | null;
   name: string | null;
@@ -93,6 +134,12 @@ interface Company {
   ycombinatorUrl: string;
 }
 
+/**
+ * Extracts a description from a given string.
+ * @function
+ * @param {string} str - The string from which to extract the description.
+ * @returns {string} - The extracted description.
+ */
 const extractDescription = (str: string): string => {
   const firstColon: number = str.indexOf(":");
   const lastPipe: number = str.lastIndexOf("|");
@@ -100,6 +147,13 @@ const extractDescription = (str: string): string => {
   return str.substring(firstColon + 1, lastPipe).trim();
 }
 
+/**
+ * Scrapes a company's information from a given URL.
+ * @async
+ * @function
+ * @param {string} url - The URL of the company to scrape.
+ * @returns {Promise<void>} - A Promise that resolves when scraping is complete.
+ */
 const scrapeCompany = async (url: string): Promise<void> => {
   const crawler: CheerioCrawler = new CheerioCrawler({
     async requestHandler({ request,  $, enqueueLinks, log }): Promise<void> {
@@ -331,6 +385,12 @@ const scrapeCompany = async (url: string): Promise<void> => {
   await crawler.run([url]);
 };
 
+/**
+ * Updates existing company data with associated launch articles.
+ * @async
+ * @function
+ * @returns {Promise<void>} - A Promise that resolves when the update is complete.
+ */
 const updateCompaniesWithLaunchArticles = async () => {
   const companyDataset: Dataset = await Dataset.open('company-dataset');
   const launchArticleDataset: Dataset = await Dataset.open('launch-article-dataset');
@@ -349,6 +409,12 @@ const updateCompaniesWithLaunchArticles = async () => {
   console.log("Updated companies with launch articles");
 };
 
+/**
+ * Exports the scraped data to JSON and moves it to challenge-2/out.
+ * @async
+ * @function
+ * @returns {Promise<void>} - A Promise that resolves when the operation is complete.
+ */
 const exportAndMoveData = async (): Promise<void> => {
   const results: Dataset = await Dataset.open("results");
   await results.exportToJSON('scraped');
@@ -356,6 +422,14 @@ const exportAndMoveData = async (): Promise<void> => {
   console.log("Data has been exported to a key-value store as 'scraped'");
 };
 
+/**
+ * Runs the web crawlers in batches to avoid overwhelming resources and rate limiting from Cheerio
+ * @async
+ * @function
+ * @param {string[]} urls - The list of URLs to scrape.
+ * @param {number} [startIndex=0] - The starting index for this batch of URLs.
+ * @returns {Promise<void>} - A Promise that resolves when all URLs in the batch have been processed.
+ */
 const runCrawlersInBatches = async (urls: string[], startIndex: number = 0): Promise<void> => {
   const MAX_BATCH_SIZE: number = 10
   if (urls.length > MAX_BATCH_SIZE) throw new Error(`Batch size should be ${MAX_BATCH_SIZE} or less`);
@@ -366,6 +440,12 @@ const runCrawlersInBatches = async (urls: string[], startIndex: number = 0): Pro
   }
 };
 
+
+/**
+ * Builds JSON datasets for companies and their associated launch articles.
+ * @function
+ * @returns {Promise<void>} - A Promise that resolves when the datasets are successfully built.
+ */
 const buildCompanyAndLaunchArticleJSONDatasets = (): Promise<void> => {
   return new Promise(async (resolve, reject): Promise<void> => {
     try {
@@ -405,6 +485,13 @@ const buildCompanyAndLaunchArticleJSONDatasets = (): Promise<void> => {
   });
 };
 
+
+/**
+ * Moves the exported data to the designated output directory.
+ * @async
+ * @function
+ * @returns {Promise<void>} - A Promise that resolves when the data has been moved.
+ */
 const moveExportedData = async (): Promise<void> => {
   const tempPath: string = path.join('storage', 'key_value_stores', 'default', 'scraped.json');
   const rawData: string = await fsp.readFile(tempPath, 'utf8');
@@ -414,6 +501,11 @@ const moveExportedData = async (): Promise<void> => {
   console.log(`Data has been moved to ${outputPath}`);
 };
 
+/**
+ * Main function that orchestrates all the steps for processing the company list.
+ * @async
+ * @function
+ */
 export async function processCompanyList() {
   try {
     await buildCompanyAndLaunchArticleJSONDatasets();
